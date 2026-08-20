@@ -1,0 +1,20 @@
+name: ladybug CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  parse-and-analyze:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: bazel-contrib/setup-bazel@0.15.0
+        with:
+          bazelisk-cache: true
+          disk-cache: true
+          repository-cache: true
+
+      - name: "Domain 1+2 verification (parse + region-analyze) of all four BDD framework files"
+        run: bazel build //:firefly_verify //:ladybug_verify //:gomega_alias_verify //:scarab_verify

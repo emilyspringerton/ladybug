@@ -1,0 +1,24 @@
+"""ladybug — EINHORN_INDUSTRIAL's official BDD testing framework for
+PARENA, published as its own standalone repo (Ginkgo/Gomega's own real
+precedent: separate repos from the Go toolchain itself). Founder,
+real-time: "ladyladybug upstream repo created" -> "publish only PARENA
+to it besides md or whatever and build files" -> "bazebazel if it
+makes sense?" -> "yea i guests for the tests for te testing rramework".
+
+Pulls in a real, pinned PARENA commit via git_override -- same pattern
+already established and CI-verified working in the longma repo's own
+MODULE.bazel -- so `parena parse`/`parena analyze` below resolve to a
+real, specific compiler build, not a floating `main`.
+"""
+
+module(
+    name = "ladybug",
+    version = "0.0.0",
+)
+
+bazel_dep(name = "parena", version = "0.0.0")
+git_override(
+    module_name = "parena",
+    remote = "https://github.com/emilyspringerton/PARENA.git",
+    commit = "ef8a302d73c9cccd9873430481ad1d00dd60131d",
+)

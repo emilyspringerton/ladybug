@@ -1,0 +1,63 @@
+# BUILD.bazel — real verification of this repo's own BDD framework
+# source, run through the real, pinned `parena` binary (via MODULE.bazel's
+# git_override). Each genrule below runs VS0 domain 1 (parse) and domain 2
+# (region analysis) against one real .prn file and fails the build if
+# either step's own exit code is non-zero -- a real, honest pass/fail
+# gate, not a no-op placeholder.
+#
+# Deliberately does NOT run `parena build` (VS0 domain 3, the C emitter)
+# yet: as of this repo's first publish, all four files here are genuinely
+# blocked on real, tracked, pre-existing PARENA emitter gaps (Vec as a
+# generic field type, `&Any`/`&mut T` reference-typed parameters and
+# fields, non-zero-argument typed `Fn` callback parameters, and — scarab
+# only — multi-field defenum variant payloads). See README.md for the
+# full, itemized list. Wiring `build` in here once those close is real,
+# separate, tracked follow-up work, not silently skipped forever.
+
+genrule(
+    name = "firefly_verify",
+    srcs = ["firefly.prn"],
+    outs = ["firefly.verify.txt"],
+    cmd = """
+        $(location @parena//src:parena) parse $(location firefly.prn) > $@.tmp 2>&1
+        $(location @parena//src:parena) analyze $(location firefly.prn) >> $@.tmp 2>&1
+        mv $@.tmp $@
+    """,
+    tools = ["@parena//src:parena"],
+)
+
+genrule(
+    name = "ladybug_verify",
+    srcs = ["firefly/ladybug.prn"],
+    outs = ["ladybug.verify.txt"],
+    cmd = """
+        $(location @parena//src:parena) parse $(location firefly/ladybug.prn) > $@.tmp 2>&1
+        $(location @parena//src:parena) analyze $(location firefly/ladybug.prn) >> $@.tmp 2>&1
+        mv $@.tmp $@
+    """,
+    tools = ["@parena//src:parena"],
+)
+
+genrule(
+    name = "gomega_alias_verify",
+    srcs = ["firefly/gomega.prn"],
+    outs = ["gomega.verify.txt"],
+    cmd = """
+        $(location @parena//src:parena) parse $(location firefly/gomega.prn) > $@.tmp 2>&1
+        $(location @parena//src:parena) analyze $(location firefly/gomega.prn) >> $@.tmp 2>&1
+        mv $@.tmp $@
+    """,
+    tools = ["@parena//src:parena"],
+)
+
+genrule(
+    name = "scarab_verify",
+    srcs = ["scarab.prn"],
+    outs = ["scarab.verify.txt"],
+    cmd = """
+        $(location @parena//src:parena) parse $(location scarab.prn) > $@.tmp 2>&1
+        $(location @parena//src:parena) analyze $(location scarab.prn) >> $@.tmp 2>&1
+        mv $@.tmp $@
+    """,
+    tools = ["@parena//src:parena"],
+)
