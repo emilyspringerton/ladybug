@@ -12,6 +12,29 @@
 ;; implemented in depth here; suite-tree below is a real, minimal
 ;; registry (a Vec of registered nodes) rather than the full nested-
 ;; scope tree a complete Ginkgo port would need -- flagged, not faked.
+;;
+;; Two real bugs found and fixed 2026-08-25 actually getting this file
+;; to `parena build` (the `suite-tree` global-state gap this file's own
+;; comment above already flagged is now closed too -- see PARENA
+;; commit for `(def ...)`/`(current-arena)` support):
+;;
+;; 1. Every enum-variant construction here used a QUALIFIED
+;;    `SuiteNode/Group`-style name -- but that syntax was never real:
+;;    zero precedent anywhere else in this stdlib (every real enum
+;;    construction, `(JNull)`/`(Ok x)`/`(Foo "hi")`, uses the bare
+;;    variant name), and confirmed live: VS0 parses `SuiteNode/Group`
+;;    as a plain mangled call name, not enum construction, silently
+;;    producing the wrong (or no) type for `vec/push!`'s own hint-
+;;    recording and `match`'s own scrutinee-type resolution -- the
+;;    real cause of "scrutinee's own type resolved to 'void'", not a
+;;    deeper gap. Fixed to bare `Group`/`Spec`/`BeforeHook`/`AfterHook`.
+;; 2. describe/it/before-each/after-each never took a `dest : Arena @
+;;    Region` parameter -- vec/push!'s own boxing (a non-pointer enum
+;;    value needs a real Arena to box into before it can live in a
+;;    Vec's own void*-item slot) has nowhere to allocate from without
+;;    one, a real, distinct compile error once (1) stopped masking it.
+;;    Added; `context` (which calls `describe`) and `describe` itself
+;;    (which calls the caller-supplied `body`) both thread it through.
 
 (module scarab)
 (import firefly)
@@ -33,26 +56,26 @@
 ;; scoped exception, not an oversight.
 (def suite-tree (vec/new (current-arena)))
 
-(defn describe [(name : String @ :region/scratch) (body : (Fn [] Unit))]
+(defn describe [(name : String @ :region/scratch) (body : (Fn [] Unit)) (dest : Arena @ Region)]
   : Unit
-  (do (vec/push! &suite-tree (SuiteNode/Group name (vec/new (current-arena))))
+  (do (vec/push! &suite-tree (Group dest name (vec/new (current-arena))))
       (body)))
 
-(defn context [(name : String @ :region/scratch) (body : (Fn [] Unit))]
+(defn context [(name : String @ :region/scratch) (body : (Fn [] Unit)) (dest : Arena @ Region)]
   : Unit
-  (describe name body))   ;; Ginkgo's own convention: Context is an alias of Describe
+  (describe name body dest))   ;; Ginkgo's own convention: Context is an alias of Describe
 
-(defn it [(name : String @ :region/scratch) (body : (Fn [&mut T] Unit))]
+(defn it [(name : String @ :region/scratch) (body : (Fn [&mut T] Unit)) (dest : Arena @ Region)]
   : Unit
-  (vec/push! &suite-tree (SuiteNode/Spec name body)))
+  (vec/push! &suite-tree (Spec dest name body)))
 
-(defn before-each [(hook : (Fn [] Unit))]
+(defn before-each [(hook : (Fn [] Unit)) (dest : Arena @ Region)]
   : Unit
-  (vec/push! &suite-tree (SuiteNode/BeforeHook hook)))
+  (vec/push! &suite-tree (BeforeHook hook)))
 
-(defn after-each [(hook : (Fn [] Unit))]
+(defn after-each [(hook : (Fn [] Unit)) (dest : Arena @ Region)]
   : Unit
-  (vec/push! &suite-tree (SuiteNode/AfterHook hook)))
+  (vec/push! &suite-tree (AfterHook hook)))
 
 ;; run-suite — walks suite-tree, running each BeforeHook before every
 ;; Spec and each AfterHook after, via firefly/run-tests underneath so
@@ -64,7 +87,7 @@
     (loop [i 0]
       (when (< i (vec/len &suite-tree))
         (match (deref (vec/get &suite-tree i))
-          ((SuiteNode/Spec name body) (vec/push! &cases {:name name :run body}))
+          ((Spec name body) (vec/push! &cases {:name name :run body}))
           (_ unit))
         (recur (+ i 1))))
     (firefly/run-tests &cases dest)))
