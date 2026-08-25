@@ -34,14 +34,44 @@
   (when (not (matcher (get-field exp :actual)))
     (firefly/errorf (get-field exp :t) "expectation failed")))
 
+;; Real, honest gaps found 2026-08-25 getting this file to actually
+;; `parena build` (not just parse/analyze -- domains 1/2 the README's
+;; own status table already covers), in the order they were actually
+;; hit -- fixing one reveals the next, not fabricated as one list:
+;;
+;; 1. The three lambdas below used unannotated `(fn [actual] ...)`
+;;    params -- VS0's `fn` lambda emitter requires an explicit
+;;    `(name : Type)` annotation on every parameter, same as `defn` (no
+;;    type inference anywhere in this compiler). Fixed below.
+;; 2. Deeper, structural, NOT fixed here: `equal`'s own lambda body
+;;    references `expected`, a parameter of the ENCLOSING `equal`
+;;    function -- but VS0's lambda emitter builds each `fn` literal
+;;    with `scope_init(&lambda_scope, NULL)` (a scope with deliberately
+;;    NO parent, per emit.c's own comment there), so the compiler
+;;    genuinely cannot see `expected` from inside the lambda at all
+;;    ("unknown identifier 'expected'", confirmed live). This is real
+;;    closure support VS0 does not have yet -- `equal` (which needs to
+;;    capture its own `expected` argument) cannot be written as a
+;;    lambda at all until it does. `be-true`/`be-nil` don't capture
+;;    anything and are NOT affected by this -- their own remaining gap
+;;    is `deep-eq?`/`is-none?` simply not being defined anywhere (a
+;;    separate, smaller, real design question: an `Any`-erased value is
+;;    a bare `void *` with no runtime type tag, so even a non-
+;;    capturing `is-none?` needs a real decision on what "the Any is an
+;;    Option and it's None" even means without a tag).
+;;
+;; Both flagged here, not faked with a plausible-looking but wrong
+;; implementation -- `equal` cannot compile until VS0 gains real lambda
+;; captures; `be-true`/`be-nil` are one real, smaller function
+;; (`is-none?`) away.
 (defn equal [(expected : &Any)]
   : (Fn [&Any] Bool)
-  (fn [actual] (deep-eq? actual expected)))
+  (fn [(actual : &Any)] (deep-eq? actual expected)))
 
 (defn be-true []
   : (Fn [&Any] Bool)
-  (fn [actual] (= actual true)))
+  (fn [(actual : &Any)] (= actual true)))
 
 (defn be-nil []
   : (Fn [&Any] Bool)
-  (fn [actual] (is-none? actual)))
+  (fn [(actual : &Any)] (is-none? actual)))
