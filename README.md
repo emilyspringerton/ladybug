@@ -21,33 +21,41 @@ purely as a compatibility shim, not deleted.
 
 ## Honest current status
 
-**Source-published; does not yet compile end-to-end against the current PARENA (VS0) compiler.**
-All four files here pass VS0 domain 1 (`parena parse`) and domain 2 (`parena analyze`, the region
-analyzer) cleanly today — verified as real, current Bazel targets in `BUILD.bazel`/CI. Domain 3
-(`parena build`, the C emitter) is genuinely blocked, on real, pre-existing, tracked PARENA gaps:
+**Real, updated status, 2026-09-03 (kanban priority-queue card `LB-911`, "FIX LADYBUG AND
+SCARAB")** — the original 4-gap list below turned out to be stale, not currently accurate;
+checked live by actually running `parena build` against each file directly, rather than trusting
+the README's own prior claim:
 
-1. **`Vec` as a generic field/collection type isn't resolved yet** (`firefly.prn`'s own
-   `TestReport`/`T` structs use `(Vec String) @ Region`) — blocks `firefly.prn` first, before any
-   of the below are even reached.
-2. **Reference types (`&Any`, `&mut T`, `&Expectation`, etc.) aren't supported as parameter, field,
-   or return types** — blocks `firefly.prn` (`&mut T` params), `firefly/ladybug.prn` and
-   `firefly/gomega.prn` (`&Any`, `&mut T`, `&Expectation`), and `scarab.prn` (`&mut T`, `deref`).
-3. **Non-zero-argument, typed `Fn` callback parameters aren't supported** — VS0 currently only
-   understands zero-argument `(Fn [] <ReturnType>)`; the matcher-chain shape here needs
-   `(Fn [&Any] Bool)` (`to`'s matcher argument, `equal`/`be-true`/`be-nil`'s own return types) and
-   `(Fn [&mut T] Unit)` (`scarab.prn`'s spec bodies).
-4. **`defenum` variants are capped at one payload field** — blocks `scarab.prn`'s own `SuiteNode`
-   (`Group` needs two: `name` and `children`).
+- **`firefly.prn` now builds cleanly all the way through domain 3 (`parena build`, the real C
+  emitter)** — confirmed live. The original blockers named for it (`Vec` as a generic struct
+  field, `&mut T` params) have since closed in PARENA's own emitter; this file was never
+  re-checked after they did, until now. Real, new `firefly_build` Bazel target added below.
+- **`firefly/ladybug.prn` (and `firefly/gomega.prn`, which delegates to it) remain genuinely
+  blocked — but on a DIFFERENT, more fundamental real gap than originally listed**: `equal`'s own
+  body (`(fn [(actual : &Any)] (deep-eq? actual expected))`) needs a real, closed-over `expected`
+  from its OWN enclosing function's scope — VS0 has no lambda/closure captures at all yet (a real,
+  substantial, separate compiler feature: heap-allocated capture environments or defunctionalized
+  callables, comparable in scope to adding real generics). `equal`'s own real signature
+  (`(Fn [&Any] Bool)`, a non-zero-argument, typed `Fn` return type) DOES already compile — the
+  original "non-zero-argument `Fn` callback parameters aren't supported" claim is also now stale.
+- **`scarab.prn` remains genuinely blocked, on a real, different gap**: an `Fn` type referencing a
+  bare, generic type parameter `T` (`(Fn [&mut T] Unit)`) — VS0 still has no real generic type
+  parameters at all (a well-known, already-documented, monorepo-wide limitation, not new to this
+  file). Real, honest note: this is the FIRST error `parena build` reports for this file — whether
+  the original list's other 3 items (reference types, multi-arg `Fn`, multi-field `defenum`) have
+  also since closed for `scarab.prn` specifically is genuinely unknown until the `T`-generics
+  blocker closes and a next real error (or success) surfaces; not claimed either way here.
 
-These are the same real gaps tracked in [PARENA/STDLIB.md](https://github.com/emilyspringerton/PARENA/blob/main/STDLIB.md)'s
-own gap-analysis section, not something invented fresh for this repo. As each closes in PARENA's
-own emitter, this repo's CI gains a real `parena build` step for the newly-unblocked file(s) — not
-before, and not faked in the meantime.
+Real, deliberate scope for this pass: closing lambda captures or real generics is a genuinely
+large, separate PARENA compiler undertaking, not attempted here — this update's own real,
+concrete contribution is correcting the stale gap list against what's ACTUALLY true today (found
+live, not assumed) and wiring the one real, newly-unblocked `parena build` step
+(`firefly_build`) rather than leaving it un-wired for another unknown stretch of time.
 
 ## Building
 
 ```bash
-bazel build //:firefly_verify //:ladybug_verify //:gomega_alias_verify //:scarab_verify
+bazel build //:firefly_verify //:firefly_build //:ladybug_verify //:gomega_alias_verify //:scarab_verify
 ```
 
 Pulls in a pinned PARENA commit via `MODULE.bazel`'s own `git_override` (not a floating branch —

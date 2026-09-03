@@ -9,6 +9,12 @@ Pulls in a real, pinned PARENA commit via git_override -- same pattern
 already established and CI-verified working in the longma repo's own
 MODULE.bazel -- so `parena parse`/`parena analyze` below resolve to a
 real, specific compiler build, not a floating `main`.
+
+Bumped 2026-09-03 (kanban priority-queue card LB-911, "FIX LADYBUG AND
+SCARAB"): the prior pin predated both a real emitter fix that
+unblocked firefly.prn's own domain-3 build, and stdlib/BUILD.bazel's
+own real exposure of `@parena//stdlib:string.prn` (needed by this
+repo's own new `firefly_build` genrule).
 """
 
 module(
@@ -20,5 +26,5 @@ bazel_dep(name = "parena", version = "0.0.0")
 git_override(
     module_name = "parena",
     remote = "https://github.com/emilyspringerton/PARENA.git",
-    commit = "ef8a302d73c9cccd9873430481ad1d00dd60131d",
+    commit = "227f78cef7d4237d0299431e717e644cfcfb5b57",
 )
